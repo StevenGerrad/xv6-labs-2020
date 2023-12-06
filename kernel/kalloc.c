@@ -80,3 +80,24 @@ kalloc(void)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
+
+
+// Lab 2 sysinfo 
+// 粗略得看了下上面的代码，也就是内存大致是按页分的
+// 暂时不考虑错误处理
+void
+collectfree(uint64 *freemem)
+{
+  acquire(&kmem.lock);
+  // *freemem = (char*)PHYSTOP - (char*)kmem.freelist;
+  // *freemem = (char*)kmem.freelist - end;
+  // TODO: 不知道为什么我这个不对
+  *freemem = 0;
+  struct run *r = kmem.freelist;
+  while (r) {
+    (*freemem)++;
+    r = r->next;
+  }
+  release(&kmem.lock);
+  *freemem *= PGSIZE;
+}

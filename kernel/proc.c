@@ -291,6 +291,8 @@ fork(void)
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
+  np->syscall_trace = p->syscall_trace;
+
   pid = np->pid;
 
   np->state = RUNNABLE;
@@ -691,5 +693,20 @@ procdump(void)
       state = "???";
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
+  }
+}
+
+// Lab 2 sysinfo
+// 粗略看一下，感觉是一开始就分好了最大个数多个进程，然后再分
+void
+collectnumproc(uint64 *nproc)
+{
+  *nproc = 0;
+  for(struct proc *p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state != UNUSED) {
+      (*nproc)++;
+    }
+    release(&p->lock);
   }
 }
