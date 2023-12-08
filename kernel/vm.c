@@ -286,7 +286,7 @@ freewalk(pagetable_t pagetable)
       panic("freewalk: leaf");
     }
   }
-  kfree((void*)pagetable);
+  kfree((void*)pagetable);  // kfree每次只释放PGSIZE大小
 }
 
 // Free user memory pages,
@@ -438,5 +438,28 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return 0;
   } else {
     return -1;
+  }
+}
+
+// Lab pgtbl : Print a page table
+// 仿照freewalk函数
+void
+vmprint(pagetable_t pagetable, int level)
+{
+  if(level == 0){
+    printf("page table %p\n", pagetable);
+  }
+  // there are 2^9 = 512 PTEs in a page table.
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if(pte & PTE_V){
+      // this PTE points to a lower-level page table.
+      uint64 child = PTE2PA(pte);
+      for(int j=0;j<level;j++){
+        printf(".. ");
+      }
+      printf("..%d: pte %p pa %p\n", i, pte, child);
+      if(level < 2) vmprint((pagetable_t)child, level + 1);
+    } 
   }
 }
