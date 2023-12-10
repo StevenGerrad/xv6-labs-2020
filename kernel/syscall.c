@@ -8,6 +8,9 @@
 #include "defs.h"
 
 // Fetch the uint64 at addr from the current process.
+// params:
+//    addr  : 用户页表中的virtual address
+//    ip    : 要读取的数据（参数）
 int
 fetchaddr(uint64 addr, uint64 *ip)
 {

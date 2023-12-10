@@ -34,13 +34,17 @@ procinit(void)
       // Allocate a page for the process's kernel stack.
       // Map it high in memory, followed by an invalid
       // guard page.
-      char *pa = kalloc();
-      if(pa == 0)
-        panic("kalloc");
-      uint64 va = KSTACK((int) (p - proc));
-      kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
-      p->kstack = va;
+
+      // char *pa = kalloc();
+      // if(pa == 0)
+      //   panic("kalloc");
+      // uint64 va = KSTACK((int) (p - proc));
+      // kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+      // p->kstack = va;
+      
+      // Lab pgtbl 将内核栈的初始化移动到 allocproc中
   }
+  // TODO：实际上 procinit是被 main.c 调用的，并且main.c已经调用了kvminithart，为什么这里还要调用一次？
   kvminithart();
 }
 
@@ -113,6 +117,24 @@ found:
     return 0;
   }
 
+  // 分配内核页表
+  p->kernel_pgtbl = kernelsvminit();
+  if(p->kernel_pgtbl == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+
+  // 将分配内核栈的逻辑从procinit移动过来
+  char *ks_pa = kalloc();
+  if(ks_pa == 0)
+    panic("kalloc");
+  // uint64 ks_va = KSTACK((int) (p - proc));
+  uint64 ks_va = KSTACK((int)0); // XXX: 将内核栈映射到固定的逻辑地址上
+  // kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+  kernelsvmmap(p->kernel_pgtbl, ks_va, (uint64)ks_pa, PGSIZE, PTE_R | PTE_W);
+  p->kstack = ks_va;
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -149,6 +171,24 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+
+  // XXX: https://blog.miigon.net/posts/s081-lab3-page-tables/
+  // 释放进程的内核栈
+  void *kstack_pa = (void *)kernelsvmpa(p->kernel_pgtbl, p->kstack);  
+  // printf("trace: free kstack %p\n", kstack_pa);
+  kfree(kstack_pa);
+  p->kstack = 0;
+
+  // 注意：此处不能使用 proc_freepagetable，因为其不仅会释放页表本身，还会把页表内所有的叶节点对应的物理页也释放掉。
+  // 这会导致内核运行所需要的关键物理页被释放，从而导致内核崩溃。
+  // 这里使用 kfree(p->kernelpgtbl) 也是不足够的，因为这只释放了**一级页表本身**，而不释放二级以及三级页表所占用的空间。
+  
+  // 递归释放进程独享的页表，释放页表本身所占用的空间，但**不释放页表指向的物理页**
+  if(p->kernel_pgtbl)
+    proc_freekernelpagetable(p->kernel_pgtbl);
+  p->kstack = 0;
+  p->kernel_pgtbl = 0;
+
   p->state = UNUSED;
 }
 
@@ -164,6 +204,7 @@ proc_pagetable(struct proc *p)
   if(pagetable == 0)
     return 0;
 
+  // trampoline 和 trapframe 是特殊的，单纯用户态用不到，不计入p->sz
   // map the trampoline code (for system call return)
   // at the highest user virtual address.
   // only the supervisor uses it, on the way
@@ -190,6 +231,7 @@ proc_pagetable(struct proc *p)
 void
 proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
+  // TODO: 为什么这里的do_free参数是0？
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
   uvmfree(pagetable, sz);
@@ -473,7 +515,13 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
-        swtch(&c->context, &p->context);
+
+        // Lab pgtbl 要将进程的内核页表加载到satp中，实际上不知道要放在哪合适
+        kernelsvminithart(p->kernel_pgtbl);
+
+        swtch(&c->context, &p->context);  // 调度，执行进程
+
+        kvminithart();    // XXX：切换回全局内核页表
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
@@ -485,6 +533,9 @@ scheduler(void)
     }
 #if !defined (LAB_FS)
     if(found == 0) {
+      // Lab pgtbl 在没有进程运行时使用kernel_pagetable
+      // kvminithart();   // XXX：注意参考的切换的位置
+
       intr_on();
       asm volatile("wfi");
     }

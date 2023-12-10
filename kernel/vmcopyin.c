@@ -26,11 +26,12 @@ statscopyin(char *buf, int sz) {
 // Copy from user to kernel.
 // Copy len bytes to dst from virtual address srcva in a given page table.
 // Return 0 on success, -1 on error.
+// TODO: 这什么意思啊，page table就没用到，va也没翻译
 int
 copyin_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
   struct proc *p = myproc();
-
+  // TODO：lab是问前两个条件成立，最后一个不成立的情况，实际上这三个我都没太明白
   if (srcva >= p->sz || srcva+len >= p->sz || srcva+len < srcva)
     return -1;
   memmove((void *) dst, (void *)srcva, len);

@@ -16,6 +16,7 @@
 #include "fs.h"
 #include "buf.h"
 #include "virtio.h"
+#include "proc.h"
 
 // the address of virtio mmio register r.
 #define R(r) ((volatile uint32 *)(VIRTIO0 + (r)))
@@ -203,7 +204,12 @@ virtio_disk_rw(struct buf *b, int write)
 
   // buf0 is on a kernel stack, which is not direct mapped,
   // thus the call to kvmpa().
-  disk.desc[idx[0]].addr = (uint64) kvmpa((uint64) &buf0);
+  // disk.desc[idx[0]].addr = (uint64) kvmpa((uint64) &buf0);
+
+  // 注意到我们的修改影响了其他代码： virtio 磁盘驱动 virtio_disk.c 中调用了 kvmpa() 用于将虚拟地址转换为物理地址，
+  // 这一操作在我们修改后的版本中，需要传入进程的内核页表。对应修改即可。
+  disk.desc[idx[0]].addr = (uint64) kernelsvmpa(myproc()->kernel_pgtbl, (uint64) &buf0); // XXX：调用 myproc()，获取进程内核页表
+
   disk.desc[idx[0]].len = sizeof(buf0);
   disk.desc[idx[0]].flags = VRING_DESC_F_NEXT;
   disk.desc[idx[0]].next = idx[1];
