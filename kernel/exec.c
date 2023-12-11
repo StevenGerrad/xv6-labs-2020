@@ -51,6 +51,11 @@ exec(char *path, char **argv)
     uint64 sz1;
     if((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz)) == 0)
       goto bad;
+    // 限制va要小于PLIC
+    // if(ph.vaddr >= PLIC)
+    //   goto bad;
+    if(sz1 >= PLIC)  // 添加检测，防止程序大小超过 PLIC
+      goto bad;
     sz = sz1;
     if(ph.vaddr % PGSIZE != 0)
       goto bad;
@@ -107,7 +112,12 @@ exec(char *path, char **argv)
     if(*s == '/')
       last = s+1;
   safestrcpy(p->name, last, sizeof(p->name));
-    
+
+  // XXX: 清除内核页表中对程序内存的旧映射，然后重新建立映射。
+  // kvmcopymappings(pagetable, p->kernel_pgtbl, 0, PLIC);
+  uvmunmap(p->kernel_pgtbl, 0, PGROUNDUP(oldsz)/PGSIZE, 0);
+  kvmcopymappings(pagetable, p->kernel_pgtbl, 0, sz);
+
   // Commit to the user image.
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;

@@ -154,9 +154,11 @@ kvmpa(uint64 va)
 // physical addresses starting at pa. va and size might not
 // be page-aligned. Returns 0 on success, -1 if walk() couldn't
 // allocate a needed page-table page.
+// params:
+//    pagetable :
 //    va    : virtual address
+//    size  : 
 //    pa    : physical address
-//    sz    : size
 //    perm  : PTE flags
 int
 mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
@@ -389,6 +391,9 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
   return 0;
 }
 
+int copyin_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len);
+int copyinstr_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max);
+
 // Copy from user to kernel.
 // Copy len bytes to dst from virtual address srcva in a given page table.
 // Return 0 on success, -1 on error.
@@ -400,25 +405,25 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
-  uint64 n, va0, pa0;
+  // uint64 n, va0, pa0;
 
-  while(len > 0){
-    // TODO：virtual address 为什么一定要对齐呢？
-    va0 = PGROUNDDOWN(srcva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
-    n = PGSIZE - (srcva - va0);
-    if(n > len)
-      n = len;
-    memmove(dst, (void *)(pa0 + (srcva - va0)), n);
+  // while(len > 0){
+  //   // TODO：virtual address 为什么一定要对齐呢？
+  //   va0 = PGROUNDDOWN(srcva);
+  //   pa0 = walkaddr(pagetable, va0);
+  //   if(pa0 == 0)
+  //     return -1;
+  //   n = PGSIZE - (srcva - va0);
+  //   if(n > len)
+  //     n = len;
+  //   memmove(dst, (void *)(pa0 + (srcva - va0)), n);
 
-    len -= n;
-    dst += n;
-    srcva = va0 + PGSIZE;
-  }
-  return 0;
-  // return copyin_new(pagetable, dst, srcva, len);
+  //   len -= n;
+  //   dst += n;
+  //   srcva = va0 + PGSIZE;
+  // }
+  // return 0;
+  return copyin_new(pagetable, dst, srcva, len);
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -428,41 +433,41 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
-  uint64 n, va0, pa0;
-  int got_null = 0;
+  // uint64 n, va0, pa0;
+  // int got_null = 0;
 
-  while(got_null == 0 && max > 0){
-    va0 = PGROUNDDOWN(srcva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
-    n = PGSIZE - (srcva - va0);
-    if(n > max)
-      n = max;
+  // while(got_null == 0 && max > 0){
+  //   va0 = PGROUNDDOWN(srcva);
+  //   pa0 = walkaddr(pagetable, va0);
+  //   if(pa0 == 0)
+  //     return -1;
+  //   n = PGSIZE - (srcva - va0);
+  //   if(n > max)
+  //     n = max;
 
-    char *p = (char *) (pa0 + (srcva - va0));
-    while(n > 0){
-      if(*p == '\0'){
-        *dst = '\0';
-        got_null = 1;
-        break;
-      } else {
-        *dst = *p;
-      }
-      --n;
-      --max;
-      p++;
-      dst++;
-    }
+  //   char *p = (char *) (pa0 + (srcva - va0));
+  //   while(n > 0){
+  //     if(*p == '\0'){
+  //       *dst = '\0';
+  //       got_null = 1;
+  //       break;
+  //     } else {
+  //       *dst = *p;
+  //     }
+  //     --n;
+  //     --max;
+  //     p++;
+  //     dst++;
+  //   }
 
-    srcva = va0 + PGSIZE;
-  }
-  if(got_null){
-    return 0;
-  } else {
-    return -1;
-  }
-  // return copyinstr_new(pagetable, dst, srcva, max);
+  //   srcva = va0 + PGSIZE;
+  // }
+  // if(got_null){
+  //   return 0;
+  // } else {
+  //   return -1;
+  // }
+  return copyinstr_new(pagetable, dst, srcva, max);
 }
 
 // Lab pgtbl : Print a page table
@@ -509,7 +514,7 @@ kernelsvminit()
   kernelsvmmap(k_pagetable, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
 
   // CLINT
-  kernelsvmmap(k_pagetable, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+  // kernelsvmmap(k_pagetable, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
 
   // PLIC
   kernelsvmmap(k_pagetable, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
@@ -614,4 +619,67 @@ kernelsvmpa(pagetable_t k_pagetable, uint64 va)
     panic("kvmpa");
   pa = PTE2PA(*pte);
   return pa+off;
+}
+
+// Lab pgtbl Simplify copyin/copyinstr 
+// 主要结构参考 https://blog.miigon.net/posts/s081-lab3-page-tables/#simplify-copyincopyinstr-hard
+// （因为一开始完全没理解页表加载到satp后相当于模拟了硬件的问题）参考后删掉内容自己重新写一下
+// 将 src 页表的一部分页映射关系拷贝到 dst 页表中（PLIC前的部分）。
+// 只拷贝页表项，不拷贝实际的物理页内存。
+// 成功返回0，失败返回 -1
+// params:
+//    pagetable_t src
+//    pagetable_t dst
+//    uint64 start    : 用户态的virtual address，常取0
+//    uint64 sz
+int
+kvmcopymappings(pagetable_t src, pagetable_t dst, uint64 start, uint64 sz)
+{
+  // 仿照的是uvmcopy
+  pte_t *pte;
+  uint64 pa, i;
+  uint flags;
+
+  // start = PGROUNDDOWN(start); // TODO: 这里要用向上取整
+  // start = PGROUNDUP(start);
+  for(i = PGROUNDUP(start); i < start + sz; i += PGSIZE){
+    if((pte = walk(src, i, 0)) == 0)
+      panic("kvmcopymappings: pte should exist");
+    if((*pte & PTE_V) == 0)
+      panic("kvmcopymappings: page not present");
+    pa = PTE2PA(*pte);
+    // XXX:`& ~PTE_U` 表示将该页的权限设置为非用户页
+    // 必须设置该权限，RISC-V 中内核是无法直接访问用户页的。
+    // flags = PTE_FLAGS(*pte);
+    flags = PTE_FLAGS(*pte) & ~PTE_U;
+    if(mappages(dst, i, PGSIZE, pa, flags) != 0){
+      goto err;
+    }
+  }
+  return 0;
+
+ err:
+  // uvmunmap(dst, 0, i / PGSIZE, 1);
+
+  // XXX: thanks @hdrkna for pointing out a mistake here.
+  // original code incorrectly starts unmapping from 0 instead of PGROUNDUP(start)
+  uvmunmap(dst, PGROUNDUP(start), (i - PGROUNDUP(start)) / PGSIZE, 0);
+  return -1;
+}
+
+// 与 uvmdealloc 功能类似，将程序内存从 oldsz 缩减到 newsz。但区别在于不释放实际内存
+// 用于内核页表内程序内存映射与用户页表程序内存映射之间的同步
+uint64
+kvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
+{
+  if(newsz >= oldsz)
+    return oldsz;
+
+  if(PGROUNDUP(newsz) < PGROUNDUP(oldsz)){
+    int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
+    // uvmunmap(pagetable, PGROUNDUP(newsz), npages, 1);  // XXX
+    uvmunmap(pagetable, PGROUNDUP(newsz), npages, 0);
+  }
+
+  return newsz;
 }

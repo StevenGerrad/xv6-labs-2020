@@ -32,6 +32,7 @@ copyin_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
   struct proc *p = myproc();
   // TODO：lab是问前两个条件成立，最后一个不成立的情况，实际上这三个我都没太明白
+  // 第三个好像是越界了，甚至超过64位/32位能表达的极限了？
   if (srcva >= p->sz || srcva+len >= p->sz || srcva+len < srcva)
     return -1;
   memmove((void *) dst, (void *)srcva, len);

@@ -184,6 +184,8 @@ pagetable_t     kernelsvminit();
 void            kernelsvminithart(pagetable_t);
 void            proc_freekernelpagetable(pagetable_t);
 uint64          kernelsvmpa(pagetable_t, uint64);
+int             kvmcopymappings(pagetable_t, pagetable_t, uint64, uint64);
+uint64          kvmdealloc(pagetable_t, uint64, uint64);
 
 // plic.c
 void            plicinit(void);
