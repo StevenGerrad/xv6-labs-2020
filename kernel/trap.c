@@ -53,7 +53,7 @@ usertrap(void)
   if(r_scause() == 8){
     // system call
 
-    if(p->killed)
+    if(p->killed) // 检查是不是有其他的进程杀掉了当前进程
       exit(-1);
 
     // sepc points to the ecall instruction,
@@ -94,6 +94,10 @@ usertrapret(void)
   // we're about to switch the destination of traps from
   // kerneltrap() to usertrap(), so turn off interrupts until
   // we're back in user space, where usertrap() is correct.
+  // 它首先关闭了中断。我们之前在系统调用的过程中是打开了中断的，这里关闭中断是因为我们将要更新STVEC寄存器来指向用户空间的trap处理代码，
+  // 而之前在内核中的时候，我们指向的是内核空间的trap处理代码（6.6）。我们关闭中断因为当我们将STVEC更新到指向用户空间的trap处理代码时，
+  // 我们仍然在内核中执行代码。如果这时发生了一个中断，那么程序执行会走向用户空间的trap处理代码，即便我们现在仍然在内核中，
+  // 出于各种各样具体细节的原因，这会导致内核出错。所以我们这里关闭中断。
   intr_off();
 
   // send syscalls, interrupts, and exceptions to trampoline.S
