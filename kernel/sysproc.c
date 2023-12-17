@@ -107,12 +107,16 @@ sys_sigalarm(void)
     return -1;
 
   struct proc *p = myproc();
+  // if(p->alarm_hascalled == 1) return -1;
   p->alarm_ticks = ticks;
   p->alarm_func = (handler)func;
 
   // 时钟什么的根本就不懂啊——首先要重新过一遍LEC 6
   // 注意提示中的一点——本来就有每隔1s的时钟中断
   p->alarm_last = 0;
+  // if(ticks != 0)
+  //   p->alarm_hascalled = 1;
+  // XXX: p->alarm_hascalled 在这里不管
 
   return 0;
 }
@@ -125,5 +129,6 @@ sys_sigreturn(void)
   // TODO: 为什么在这里恢复trapframe就能恢复了？
   struct proc *p = myproc();
   *p->trapframe = *p->alarm_trapframe;
+  p->alarm_hascalled = 0;
   return 0;
 }

@@ -137,6 +137,7 @@ found:
   p->alarm_ticks = 0;
   p->alarm_last = 0;
   p->alarm_func = 0;
+  p->alarm_hascalled = 0;
 
   return p;
 }
@@ -166,7 +167,9 @@ freeproc(struct proc *p)
   p->alarm_func = 0;
   p->alarm_last = 0;
   if(p->alarm_trapframe)
-    kfree((void*)p->trapframe);
+    kfree((void*)p->alarm_trapframe);
+  // p->alarm_trapframe = 0;
+  p->alarm_hascalled = 0;
 }
 
 // Create a user page table for a given process,

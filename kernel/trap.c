@@ -92,12 +92,13 @@ usertrap(void)
   if(which_dev == 2){
     // XXX: 不判断alarm_func是否为0，因为其确实可能等于0（提示中也有）
     // if(p->alarm_ticks != 0 && p->alarm_func != 0){
-    if(p->alarm_ticks != 0){
+    if(p->alarm_ticks != 0 && p->alarm_hascalled == 0){
       // printf("|%d|", p->alarm_last);
       if(p->alarm_last == p->alarm_ticks){
         p->alarm_last = 1;
         *p->alarm_trapframe = *p->trapframe;    // XXX: 注意，这个要在前面重置epc前存
         p->trapframe->epc = (uint64)p->alarm_func;
+        p->alarm_hascalled = 1;
       } else {
         p->alarm_last++;
       }

@@ -111,4 +111,5 @@ struct proc {
   void(*alarm_func)();
   uint64 alarm_last;      // 距离上次报警过去了多少时间
   struct trapframe *alarm_trapframe;  // 用于sigreturn恢复系统
+  uint64 alarm_hascalled;    // 防止重复调用，sigalarm调用后记录，sigreturn释放
 };
