@@ -110,5 +110,5 @@ struct proc {
   // handler alarm_func;     // 报警触发函数
   void(*alarm_func)();
   uint64 alarm_last;      // 距离上次报警过去了多少时间
-  // struct trapframe *alarm_trapframe;  // 用于sigreturn恢复系统
+  struct trapframe *alarm_trapframe;  // 用于sigreturn恢复系统
 };

@@ -117,8 +117,13 @@ sys_sigalarm(void)
   return 0;
 }
 
+// 处理alarm后恢复内核进程
 uint64 
 sys_sigreturn(void)
 {
+  // 将 trapframe 恢复到时钟中断之前的状态，恢复原本正在执行的程序流
+  // TODO: 为什么在这里恢复trapframe就能恢复了？
+  struct proc *p = myproc();
+  *p->trapframe = *p->alarm_trapframe;
   return 0;
 }

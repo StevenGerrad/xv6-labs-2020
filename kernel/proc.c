@@ -113,6 +113,12 @@ found:
     return 0;
   }
 
+  // Lab traps: alarm
+  if((p->alarm_trapframe = (struct trapframe *)kalloc()) == 0){
+    release(&p->lock);
+    return 0;
+  }
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -159,6 +165,8 @@ freeproc(struct proc *p)
   p->alarm_ticks = 0;
   p->alarm_func = 0;
   p->alarm_last = 0;
+  if(p->alarm_trapframe)
+    kfree((void*)p->trapframe);
 }
 
 // Create a user page table for a given process,

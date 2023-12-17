@@ -96,6 +96,7 @@ usertrap(void)
       // printf("|%d|", p->alarm_last);
       if(p->alarm_last == p->alarm_ticks){
         p->alarm_last = 1;
+        *p->alarm_trapframe = *p->trapframe;    // XXX: 注意，这个要在前面重置epc前存
         p->trapframe->epc = (uint64)p->alarm_func;
       } else {
         p->alarm_last++;
