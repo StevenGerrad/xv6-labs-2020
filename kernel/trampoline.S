@@ -65,24 +65,24 @@ uservec:
         sd t0, 112(a0)
 
         # restore kernel stack pointer from p->trapframe->kernel_sp
-        ld sp, 8(a0)
+        ld sp, 8(a0)    # 初始化Stack Pointer指向这个进程的kernel stack的最顶端
 
         # make tp hold the current hartid, from p->trapframe->kernel_hartid
-        ld tp, 32(a0)
+        ld tp, 32(a0)   # XV6会将CPU核的编号也就是hartid保存在tp寄存器
 
         # load the address of usertrap(), p->trapframe->kernel_trap
-        ld t0, 16(a0)
+        ld t0, 16(a0)   # 将要执行的第一个C函数（usertrap）的指针
 
         # restore kernel page table from p->trapframe->kernel_satp
-        ld t1, 0(a0)
-        csrw satp, t1
+        ld t1, 0(a0)    # 写入的是kernel page table 的地址
+        csrw satp, t1   # 我们还在trampoline代码中，而trampoline代码在用户空间和内核空间都映射到了同一个地址。
         sfence.vma zero, zero
 
         # a0 is no longer valid, since the kernel page
         # table does not specially map p->tf.
 
         # jump to usertrap(), which does not return
-        jr t0
+        jr t0           # 执行了这条指令，我们就要从trampoline跳到内核的C代码中。这条指令的作用是跳转到t0指向的函数中
 
 .globl userret
 userret:
@@ -132,7 +132,9 @@ userret:
         ld t4, 264(a0)
         ld t5, 272(a0)
         ld t6, 280(a0)
-
+        
+        # 交换完成之后，a0持有的是系统调用的返回值，SSCRATCH持有的是trapframe的地址。
+        # 之后trapframe的地址会一直保存在SSCRATCH中，直到用户程序执行了另一次trap。现在我们还在kernel中
 	# restore user a0, and save TRAPFRAME in sscratch
         csrrw a0, sscratch, a0
         

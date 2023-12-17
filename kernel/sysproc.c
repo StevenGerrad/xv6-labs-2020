@@ -97,3 +97,27 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64 
+sys_sigalarm(void)
+{
+  int ticks;
+  uint64 func;
+  if(argint(0, &ticks) < 0 || argaddr(1, &func) < 0)
+    return -1;
+
+  struct proc *p = myproc();
+  p->alarm_ticks = ticks;
+  p->alarm_func = (handler)func;
+
+  // 时钟什么的根本就不懂啊——首先要重新过一遍LEC 6，然后参考博客
+  p->alarm_last = 0;
+
+  return 0;
+}
+
+uint64 
+sys_sigreturn(void)
+{
+  return 0;
+}

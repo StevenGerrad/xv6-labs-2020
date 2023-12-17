@@ -43,10 +43,13 @@ usertrap(void)
 
   // send interrupts and exceptions to kerneltrap(),
   // since we're now in the kernel.
-  w_stvec((uint64)kernelvec);
+  w_stvec((uint64)kernelvec);   // 如果已经在内核空间发起trap的话，由于已经使用了内核页表，很多处理都可以简化
 
   struct proc *p = myproc();
   
+  // 保存用户pc，仍保存在SEPC中。可能发生这种情况：当程序还在内核中执行时切换到另一个进程，
+  // 并进入到那个程序的用户空间，然后那个进程可能再调用一个系统调用进而导致SEPC的内容被覆盖。
+  // 所以，我们需要保存当前进程的SEPC寄存器到一个与该进程关联的内存中，这样这个数据才不会被覆盖。
   // save user program counter.
   p->trapframe->epc = r_sepc();
   
@@ -60,6 +63,8 @@ usertrap(void)
     // but we want to return to the next instruction.
     p->trapframe->epc += 4;
 
+    // XV6会在处理系统调用的时候使能中断，这样中断可以更快的服务，有些系统调用需要许多时间处理。
+    // 中断总是会被RISC-V的trap硬件关闭，所以在这个时间点，我们需要显式的打开中断。
     // an interrupt will change sstatus &c registers,
     // so don't enable until done with those registers.
     intr_on();
@@ -91,18 +96,24 @@ usertrapret(void)
 {
   struct proc *p = myproc();
 
+  // 它首先关闭了中断。我们之前在系统调用的过程中是打开了中断的，这里关闭中断是因为
+  // 我们将要更新STVEC寄存器来指向用户空间的trap处理代码，而之前在内核中的时候，
+  // 我们指向的是内核空间的trap处理代码。我们关闭中断因为当我们将STVEC更新到
+  // 指向用户空间的trap处理代码时，我们仍然在内核中执行代码。如果这时发生了一个中断，
+  // 那么程序执行会走向用户空间的trap处理代码，即便我们现在仍然在内核中，
+  // 出于各种各样具体细节的原因，这会导致内核出错。所以我们这里关闭中断。
   // we're about to switch the destination of traps from
   // kerneltrap() to usertrap(), so turn off interrupts until
   // we're back in user space, where usertrap() is correct.
-  // 它首先关闭了中断。我们之前在系统调用的过程中是打开了中断的，这里关闭中断是因为我们将要更新STVEC寄存器来指向用户空间的trap处理代码，
-  // 而之前在内核中的时候，我们指向的是内核空间的trap处理代码（6.6）。我们关闭中断因为当我们将STVEC更新到指向用户空间的trap处理代码时，
-  // 我们仍然在内核中执行代码。如果这时发生了一个中断，那么程序执行会走向用户空间的trap处理代码，即便我们现在仍然在内核中，
-  // 出于各种各样具体细节的原因，这会导致内核出错。所以我们这里关闭中断。
   intr_off();
 
+  // 设置了STVEC寄存器指向trampoline代码，在那里最终会执行sret指令返回到用户空间。
+  // 位于trampoline代码最后的sret指令会重新打开中断。这样，即使我们刚刚关闭了中断，
+  // 当我们在执行用户代码时中断是打开的
   // send syscalls, interrupts, and exceptions to trampoline.S
   w_stvec(TRAMPOLINE + (uservec - trampoline));
 
+  // 这里做了存储，trampoline.S里才能用
   // set up trapframe values that uservec will need when
   // the process next re-enters the kernel.
   p->trapframe->kernel_satp = r_satp();         // kernel page table
@@ -119,9 +130,15 @@ usertrapret(void)
   x |= SSTATUS_SPIE; // enable interrupts in user mode
   w_sstatus(x);
 
+  // 我们在trampoline代码的最后执行了sret指令。这条指令会将程序计数器设置成SEPC寄存器的值，
+  // 所以现在我们将SEPC寄存器的值设置成之前保存的用户程序计数器的值。在不久之前，
+  // 我们在usertrap函数中将用户程序计数器保存在trapframe中的epc字段。
   // set S Exception Program Counter to the saved user pc.
   w_sepc(p->trapframe->epc);
 
+  // 根据user page table地址生成相应的SATP值，这样我们在返回到用户空间的时候才能完成page table的切换。
+  // 实际上，我们会在汇编代码trampoline中完成page table的切换，并且也只能在trampoline中完成切换，
+  // 因为只有trampoline中代码是同时在用户和内核空间中映射。现在是准备好
   // tell trampoline.S the user page table to switch to.
   uint64 satp = MAKE_SATP(p->pagetable);
 
@@ -129,7 +146,7 @@ usertrapret(void)
   // switches to the user page table, restores user registers,
   // and switches to user mode with sret.
   uint64 fn = TRAMPOLINE + (userret - trampoline);
-  ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);
+  ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp); // 跳到 userret 并传参
 }
 
 // interrupts and exceptions from kernel code go here via kernelvec,
