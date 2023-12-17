@@ -110,7 +110,8 @@ sys_sigalarm(void)
   p->alarm_ticks = ticks;
   p->alarm_func = (handler)func;
 
-  // 时钟什么的根本就不懂啊——首先要重新过一遍LEC 6，然后参考博客
+  // 时钟什么的根本就不懂啊——首先要重新过一遍LEC 6
+  // 注意提示中的一点——本来就有每隔1s的时钟中断
   p->alarm_last = 0;
 
   return 0;

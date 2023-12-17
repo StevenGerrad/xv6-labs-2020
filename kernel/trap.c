@@ -72,6 +72,9 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+
+    // TODO：为什么放在这里不行呢？
+
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
@@ -82,8 +85,24 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  // if(which_dev == 2)
+  //   yield();
+
+  // Lab traps
+  if(which_dev == 2){
+    // XXX: 不判断alarm_func是否为0，因为其确实可能等于0（提示中也有）
+    // if(p->alarm_ticks != 0 && p->alarm_func != 0){
+    if(p->alarm_ticks != 0){
+      // printf("|%d|", p->alarm_last);
+      if(p->alarm_last == p->alarm_ticks){
+        p->alarm_last = 1;
+        p->trapframe->epc = (uint64)p->alarm_func;
+      } else {
+        p->alarm_last++;
+      }
+    }
     yield();
+  }
 
   usertrapret();
 }

@@ -127,6 +127,11 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  // Lab traps 初始化进程字段
+  p->alarm_ticks = 0;
+  p->alarm_last = 0;
+  p->alarm_func = 0;
+
   return p;
 }
 
@@ -150,6 +155,10 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+
+  p->alarm_ticks = 0;
+  p->alarm_func = 0;
+  p->alarm_last = 0;
 }
 
 // Create a user page table for a given process,

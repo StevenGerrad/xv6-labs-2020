@@ -107,7 +107,8 @@ struct proc {
   char name[16];               // Process name (debugging)
 
   uint64 alarm_ticks;     // 报警间隔时间
-  handler alarm_func;     // 报警触发函数
+  // handler alarm_func;     // 报警触发函数
+  void(*alarm_func)();
   uint64 alarm_last;      // 距离上次报警过去了多少时间
-  
+  // struct trapframe *alarm_trapframe;  // 用于sigreturn恢复系统
 };
