@@ -126,7 +126,7 @@ uint64
 sys_sigreturn(void)
 {
   // 将 trapframe 恢复到时钟中断之前的状态，恢复原本正在执行的程序流
-  // TODO: 为什么在这里恢复trapframe就能恢复了？
+  // XXX: 为什么在这里恢复trapframe就能恢复了？——因为在 tranpolins.S#userset中就是用TRAPFRAME设置的
   struct proc *p = myproc();
   *p->trapframe = *p->alarm_trapframe;
   p->alarm_hascalled = 0;

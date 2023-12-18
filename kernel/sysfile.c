@@ -434,7 +434,9 @@ sys_exec(void)
       argv[i] = 0;
       break;
     }
-    argv[i] = kalloc();
+    // TODO: 这个怎么直接就分配一整页了？这么多？这么nb？另外这里的分配是直接写入内核页表了吗？
+    // 为什么这里要分配页，那么一般直接初始化的结构体等（如这个函数一开始的path变量）是分在哪了？
+    argv[i] = kalloc();   
     if(argv[i] == 0)
       goto bad;
     if(fetchstr(uarg, argv[i], PGSIZE) < 0)

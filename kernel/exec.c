@@ -68,10 +68,10 @@ exec(char *path, char **argv)
   // Use the second as the user stack.
   sz = PGROUNDUP(sz);
   uint64 sz1;
-  if((sz1 = uvmalloc(pagetable, sz, sz + 2*PGSIZE)) == 0)
+  if((sz1 = uvmalloc(pagetable, sz, sz + 2*PGSIZE)) == 0) // 分配两个页面
     goto bad;
   sz = sz1;
-  uvmclear(pagetable, sz-2*PGSIZE);
+  uvmclear(pagetable, sz-2*PGSIZE);   // 清理一个页面，第二个做stack，第一个恐怕就是guard page但是占了内存了
   sp = sz;
   stackbase = sp - PGSIZE;
 
@@ -100,7 +100,7 @@ exec(char *path, char **argv)
   // arguments to user main(argc, argv)
   // argc is returned via the system call return
   // value, which goes in a0.
-  p->trapframe->a1 = sp;
+  p->trapframe->a1 = sp;    // TODO：整个一系列关于sp的处理还是不太清楚
 
   // Save program name for debugging.
   for(last=s=path; *s; s++)

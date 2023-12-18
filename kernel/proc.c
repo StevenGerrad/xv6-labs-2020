@@ -238,7 +238,7 @@ userinit(void)
   
   // allocate one user page and copy init's instructions
   // and data into it.
-  uvminit(p->pagetable, initcode, sizeof(initcode));
+  uvminit(p->pagetable, initcode, sizeof(initcode));  // TODO: 把整个proc扔进去吗？
   p->sz = PGSIZE;
 
   // prepare for the very first "return" from kernel to user.

@@ -73,8 +73,6 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
 
-    // TODO：为什么放在这里不行呢？
-
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
