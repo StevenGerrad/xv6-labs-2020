@@ -49,6 +49,8 @@ extern volatile int panicked; // from printf.c
 
 void uartstart();
 
+// 配置要使用的UART芯片
+// 运行完这个函数之后，原则上UART就可以生成中断了。但是因为我们还没有对PLIC编程，所以中断不能被CPU感知
 void
 uartinit(void)
 {
@@ -93,6 +95,7 @@ uartputc(int c)
       ;
   }
 
+  // 有一个为consumer提供的读指针和为producer提供的写指针，来构建一个环形的buffer
   while(1){
     if(((uart_tx_w + 1) % UART_TX_BUF_SIZE) == uart_tx_r){
       // buffer is full.
@@ -143,6 +146,7 @@ uartstart()
       return;
     }
     
+    // 检查当前设备是否空闲
     if((ReadReg(LSR) & LSR_TX_IDLE) == 0){
       // the UART transmit holding register is full,
       // so we cannot give it another byte.

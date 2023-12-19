@@ -11,6 +11,7 @@
 
 char *argv[] = { "sh", 0 };
 
+// 这是系统启动后运行的第一个进程
 int
 main(void)
 {
