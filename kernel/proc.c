@@ -695,3 +695,101 @@ procdump(void)
     printf("\n");
   }
 }
+
+
+// int uvmlazyalloc(){
+// }
+
+// int uvmlazyvalid(uint64 va){
+//   struct proc *p = myproc();
+//   // 要小于用户stack
+//   if(va >= PGROUNDDOWN(p->trapframe->sp) - PGSIZE){
+//     return -1;
+//   }
+//   // 要小于sz
+//   if(va > p->sz) return -1;
+//   // 查不到pte
+//   pte_t *pte;
+//   va = PGROUNDDOWN(va);
+//   if(pte = walk(p->pagetable, va, 0) != 0){
+
+//   }
+//   // TODO:标志位为0——其实没必要，walk默认添加V标志，只要有pte就有V标志。
+  
+  
+//   return 1;
+// }
+
+void
+copyhelper(uint64 va){
+  struct proc* p = myproc();
+  if(va > p->sz){
+    return ;
+  } 
+  va = PGROUNDDOWN(va);
+  // 不能越界到user stack的guard page
+  pte_t *pte = walk(p->pagetable, va, 0);
+  if(pte != 0) {
+    // guard page
+    if((*pte & PTE_U) == 0 && (*pte & PTE_V) == 1) return ;
+    // 已经分配了
+    else if((*pte & PTE_V)) return ;
+  }
+  // if(pte != 0 && (*pte & PTE_U) == 0){
+  //   printf("copyhelper(): scause %p pid=%d to guard page\n", r_scause(), p->pid);
+  //   printf("            sepc=%p stval(va)=%p pte=%p\n", r_sepc(), r_stval(), *pte);
+  //   p->killed = 1;
+  // }
+
+  // 参考uvmalloc编写
+  char *mem = kalloc();
+  if(mem == 0){
+    printf("copyhelper(): scause %p pid=%d no free memory\n", r_scause(), p->pid);
+    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+    p->killed = 1;
+  } else {
+    memset(mem, 0, PGSIZE);
+    if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_U) != 0){
+      kfree(mem);
+      printf("copyhelper(): scause %p pid=%d lazy allocation mappages fault\n", r_scause(), p->pid);
+      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+      p->killed = 1;
+    }
+  }
+}
+
+// 用来查看copyin
+void
+copyinhelper(uint64 va){
+  struct proc* p = myproc();
+  if(va > p->sz){
+    return ;
+  } 
+  va = PGROUNDDOWN(va);
+  // 不能越界到user stack的guard page
+  pte_t *pte = walk(p->pagetable, va, 0);
+  if(pte != 0) {
+    // guard page
+    if((*pte & PTE_U) == 0 && (*pte & PTE_V) == 1) return ;
+    // 已经分配了
+    else if((*pte & PTE_V)) return ;
+  }
+
+  // 参考uvmalloc编写
+  char *mem = kalloc();
+  if(mem == 0){
+    printf("copyhelper(): scause %p pid=%d no free memory\n", r_scause(), p->pid);
+    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+    p->killed = 1;
+  } else {
+    memset(mem, 0, PGSIZE);
+    if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_U) != 0){
+      kfree(mem);
+      printf("copyhelper(): scause %p pid=%d lazy allocation mappages fault\n", r_scause(), p->pid);
+      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+      p->killed = 1;
+    }
+    // 只有usertests sbrkarg 是专门测这个的
+    printf("copyin lazy alloc pid=%p sepc=%p stval=%p\n", p->pid, r_sepc(), r_stval());
+  }
+}

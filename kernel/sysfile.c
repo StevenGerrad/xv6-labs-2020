@@ -437,8 +437,11 @@ sys_exec(void)
     argv[i] = kalloc();
     if(argv[i] == 0)
       goto bad;
+    // exec的参数应该是指针数组，但为什么要用pgtbl解析两次？好像是因为是指针数组？
     if(fetchstr(uarg, argv[i], PGSIZE) < 0)
       goto bad;
+    // usertests sbrkarg
+    printf("sys_exec: arg[%d]=%s uarg=%p\n", i, argv[i], (uint64*)uarg);
   }
 
   int ret = exec(path, argv);

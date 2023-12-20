@@ -67,7 +67,47 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  } else if(r_scause() == 13 || r_scause() == 15) {
+    // 13: Load page fault
+    // 15: Store/AMO page fault
+    uint64 va = r_stval();
+    // Hints: 地址过高直接终止
+    // if(va > p->sz || va >= PGROUNDDOWN(p->trapframe->sp) - PGSIZE){
+    if(va > p->sz){
+      // printf("usertrap(): scause %p pid=%d too high virtual address\n", r_scause(), p->pid);
+      // printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+      p->killed = 1;
+    } else {
+      va = PGROUNDDOWN(va);
+      
+      // 不能越界到user stack的guard page
+      // TODO:这里算是自己的创新，利用guard page的性质（取消了U标志）来判断，但是他们都是用sp判断的。
+      pte_t *pte = walk(p->pagetable, va, 0);
+      if(pte != 0 && (*pte & PTE_U) == 0 && (*pte & PTE_V)){
+        // printf("usertrap(): scause %p pid=%d to guard page\n", r_scause(), p->pid);
+        // printf("            sepc=%p stval(va)=%p pte=%p\n", r_sepc(), r_stval(), *pte);
+        p->killed = 1;
+      } else {
+        // 参考uvmalloc编写
+        char *mem = kalloc();
+        if(mem == 0){
+          // printf("usertrap(): scause %p pid=%d no free memory\n", r_scause(), p->pid);
+          // printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+          p->killed = 1;
+        } else {
+          memset(mem, 0, PGSIZE);
+          
+          if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_U) != 0){
+            kfree(mem);
+            printf("usertrap(): scause %p pid=%d lazy allocation mappages fault\n", r_scause(), p->pid);
+            printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+            p->killed = 1;
+          }
+        }
+      }
+    }
+  } 
+  else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;

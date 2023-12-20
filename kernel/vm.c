@@ -5,6 +5,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+// #include "proc.h"
 
 /*
  * the kernel's page table.
@@ -180,10 +181,16 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
     panic("uvmunmap: not aligned");
 
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
-    if((pte = walk(pagetable, a, 0)) == 0)
-      panic("uvmunmap: walk");
-    if((*pte & PTE_V) == 0)
-      panic("uvmunmap: not mapped");
+    // if((pte = walk(pagetable, a, 0)) == 0)
+    //   panic("uvmunmap: walk");
+    if((pte = walk(pagetable, a, 0)) == 0)  // XXX: 之前没有过pte的话前面的条件walk()就panic了
+      continue;
+    // if((*pte & PTE_V) == 0){
+    //   printf("uvmunmap: va=%p, &pte=%p, pte=%p\n", va, pte, *pte);
+    //   panic("uvmunmap: not mapped");
+    // }
+    if((*pte & PTE_V) == 0)   // XXX:但是页表整个分了PGSIZE，可能能walk出东西但都是0
+      continue;
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
     if(do_free){
@@ -314,10 +321,14 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
+    // if((pte = walk(old, i, 0)) == 0)
+    //   panic("uvmcopy: pte should exist");
     if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
+      continue;
+    // if((*pte & PTE_V) == 0)
+    //   panic("uvmcopy: page not present");
     if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
+      continue;
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)
@@ -348,6 +359,8 @@ uvmclear(pagetable_t pagetable, uint64 va)
   *pte &= ~PTE_U;
 }
 
+void copyhelper(uint64);
+
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
@@ -355,6 +368,8 @@ int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
+
+  copyhelper(dstva);
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
@@ -380,6 +395,10 @@ int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
   uint64 n, va0, pa0;
+
+  // TODO: 参考的博客需要改copyin/copyout，但是为什么，如果user va都没有分，那拷进的是什么？
+  // copyhelper(srcva);
+  copyinhelper(srcva);
 
   while(len > 0){
     va0 = PGROUNDDOWN(srcva);
@@ -408,6 +427,7 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   uint64 n, va0, pa0;
   int got_null = 0;
 
+  copyinhelper(srcva);
   while(got_null == 0 && max > 0){
     va0 = PGROUNDDOWN(srcva);
     pa0 = walkaddr(pagetable, va0);
@@ -440,3 +460,28 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+
+// Lab pgtbl : Print a page table
+// 仿照freewalk函数
+void
+vmprint(pagetable_t pagetable, int level)
+{
+  if(level == 0){
+    printf("page table %p\n", pagetable);
+  }
+  // there are 2^9 = 512 PTEs in a page table.
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if(pte & PTE_V){
+      // this PTE points to a lower-level page table.
+      uint64 child = PTE2PA(pte);
+      for(int j=0;j<level;j++){
+        printf(".. ");
+      }
+      printf("..%d: pte %p pa %p\n", i, pte, child);
+      if(level < 2) vmprint((pagetable_t)child, level + 1);
+    } 
+  }
+}
+
