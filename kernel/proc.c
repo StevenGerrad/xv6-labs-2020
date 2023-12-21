@@ -789,6 +789,7 @@ copyinhelper(uint64 va){
       printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
       p->killed = 1;
     }
+    backtrace();
     // 只有usertests sbrkarg 是专门测这个的
     printf("copyin lazy alloc pid=%p sepc=%p stval=%p\n", p->pid, r_sepc(), r_stval());
   }
