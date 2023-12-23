@@ -338,7 +338,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     // uint t_flags = PTE_FLAGS(*pte);
     // *pte &= ~PTE_W;
     // *pte |= PTE_C;
-    // XXX: 考虑只读页的拷贝
+    // 考虑只读页的拷贝——（似乎不用考虑）
     if(*pte & PTE_W) {
       // 清除父进程的 PTE_W 标志位，设置 PTE_COW 标志位表示是一个懒复制页（多个进程引用同个物理页）
       *pte = (*pte & ~PTE_W) | PTE_C;

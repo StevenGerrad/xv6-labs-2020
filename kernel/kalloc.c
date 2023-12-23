@@ -15,8 +15,8 @@ extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
 
 // uint* refcnt;
-struct spinlock pgreflock; // XXX:用于 pageref 数组的锁，防止竞态条件引起内存泄漏
-#define PA2PGREF_ID(p) (((p)-KERNBASE)/PGSIZE)  // TODO：为什么KERNBASE
+struct spinlock pgreflock; // XXX:用于 pageref 数组的锁，防止竞态条件引起内存泄漏（也可以就用原来的锁）
+#define PA2PGREF_ID(p) (((p)-KERNBASE)/PGSIZE)  // 用KERNBASE
 #define PGREF_MAX_ENTRIES PA2PGREF_ID(PHYSTOP)
 int refcnt[PGREF_MAX_ENTRIES];
 
@@ -68,7 +68,7 @@ kfree(void *pa)
     panic("kfree");
 
   acquire(&pgreflock);
-  // XXX: 由于锁不能嵌套
+  // 锁不能嵌套
   // uint res = kpagerefinc(pa, -1);
   // if(res <= 0) {
   if(--PA2PGREF(pa) <= 0) {
@@ -114,7 +114,7 @@ kpagerefinc(void *pa, int a)
 {
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("krefinc pa invalid");
-  // XXX: 自己写的这个索引有问题，应该是KERNBASE？
+  // XXX: 自己写的这个索引有问题，应该是KERNBASE？（主要是要统一可能）
   // int ind = ((char*)pa - (char*)PGROUNDUP((uint64)end)) / PGSIZE;
   acquire(&pgreflock);
   // refcnt[ind] += a;

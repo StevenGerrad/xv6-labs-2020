@@ -70,7 +70,7 @@ usertrap(void)
   }
   // 注意这个要只在else前
   else if(r_scause() == 15){
-    // XXX: 这里还是13和15
+    // 这里还是13和15 ——（15就可以）
     uint64 va = r_stval();
     // printf("page fault %p\n", va);
     if(validva(va) < 0) {
@@ -266,7 +266,7 @@ copyonwrite(uint64 va)
     
   uint64 mem = (uint64)kcopy_n_deref((void*)pa); // 将一个懒复制的页引用变为一个实复制的页
   if(mem == 0){
-    // XXX：由于是测试的一部分，这里不报panic
+    // 由于是测试的一部分，这里不报panic
     // panic("copyonwrite: mem");
     // p->killed = 1;
     return -1;
