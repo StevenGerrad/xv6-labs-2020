@@ -69,7 +69,7 @@ usertrap(void)
     // ok
   }
   // 注意这个要只在else前
-  else if(r_scause() == 13 || r_scause() == 15){
+  else if(r_scause() == 15){
     // XXX: 这里还是13和15
     uint64 va = r_stval();
     // printf("page fault %p\n", va);

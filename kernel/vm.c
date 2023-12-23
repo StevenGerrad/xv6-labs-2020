@@ -380,6 +380,8 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
   uint64 n, va0, pa0;
 
   while(len > 0){
+    // XXX: 对于跨越多页的 copyout，如果目标页中有多个 COW 页，
+    // 只有刚好在地址范围开头的第一个页会被检查，导致共享页被误写
     if(validva(dstva) == 0){
       copyonwrite(dstva);
     }

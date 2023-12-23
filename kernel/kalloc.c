@@ -114,7 +114,7 @@ kpagerefinc(void *pa, int a)
 {
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("krefinc pa invalid");
-  // XXX: 自己写的这个索引有问题，应该是KERNBASE
+  // XXX: 自己写的这个索引有问题，应该是KERNBASE？
   // int ind = ((char*)pa - (char*)PGROUNDUP((uint64)end)) / PGSIZE;
   acquire(&pgreflock);
   // refcnt[ind] += a;
