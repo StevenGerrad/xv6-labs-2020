@@ -311,22 +311,45 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  // char *mem;
 
+  // for(i = 0; i < sz; i += PGSIZE){
+  //   if((pte = walk(old, i, 0)) == 0)
+  //     panic("uvmcopy: pte should exist");
+  //   if((*pte & PTE_V) == 0)
+  //     panic("uvmcopy: page not present");
+  //   pa = PTE2PA(*pte);
+  //   flags = PTE_FLAGS(*pte);
+  //   if((mem = kalloc()) == 0)
+  //     goto err;
+  //   memmove(mem, (char*)pa, PGSIZE);
+  //   if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
+  //     kfree(mem);
+  //     goto err;
+  //   }
+  // }
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
+    // 取消父子pte的W位，用上RSW位（8、9，用8做COW位）
+    // uint t_flags = PTE_FLAGS(*pte);
+    // *pte &= ~PTE_W;
+    // *pte |= PTE_C;
+    // XXX: 考虑只读页的拷贝
+    if(*pte & PTE_W) {
+      // 清除父进程的 PTE_W 标志位，设置 PTE_COW 标志位表示是一个懒复制页（多个进程引用同个物理页）
+      *pte = (*pte & ~PTE_W) | PTE_C;
+    }
+
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+    if(mappages(new, i, PGSIZE, pa, flags) != 0){
+      // *pte += t_flags - flags;
       goto err;
     }
+    kpagerefinc((void *)pa, 1);
   }
   return 0;
 
@@ -357,6 +380,9 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
   uint64 n, va0, pa0;
 
   while(len > 0){
+    if(validva(dstva) == 0){
+      copyonwrite(dstva);
+    }
     va0 = PGROUNDDOWN(dstva);
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)

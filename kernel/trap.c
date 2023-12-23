@@ -67,7 +67,21 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  }
+  // 注意这个要只在else前
+  else if(r_scause() == 13 || r_scause() == 15){
+    // XXX: 这里还是13和15
+    uint64 va = r_stval();
+    // printf("page fault %p\n", va);
+    if(validva(va) < 0) {
+      p->killed = 1;
+    } else {
+      if(copyonwrite(va) < 0){
+        p->killed = 1;
+      }
+    }
+  }  
+  else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
@@ -218,3 +232,81 @@ devintr()
   }
 }
 
+
+int
+validva(uint64 va)
+{
+  struct proc *p = myproc();
+  if(va > p->sz) return -1;
+  
+  va = PGROUNDDOWN(va);
+  pte_t *pte = walk(p->pagetable, va, 0);
+  // valid page
+  if(pte == 0 || !(*pte & PTE_V)) return -1;
+  // not guard page
+  if((*pte & PTE_U) == 0 && (*pte & PTE_V)) return -1;
+  // not cow page
+  if(!(*pte & PTE_C)) return -1;
+
+  return 0;
+}
+
+int
+copyonwrite(uint64 va)
+{
+  va = PGROUNDDOWN(va);
+  struct proc *p = myproc();
+
+  // 查看pa引用数，只剩1不用分
+  pte_t *pte = walk(p->pagetable, va, 0);
+  uint64 pa = PTE2PA(*pte);
+  // uint res = kpagerefinc((void *)pa, 0);
+  // if(res > 1){
+    // char *mem = kalloc();
+    
+  uint64 mem = (uint64)kcopy_n_deref((void*)pa); // 将一个懒复制的页引用变为一个实复制的页
+  if(mem == 0){
+    // XXX：由于是测试的一部分，这里不报panic
+    // panic("copyonwrite: mem");
+    // p->killed = 1;
+    return -1;
+  }
+  // memmove(mem, (void *)pa, PGSIZE);
+  // 修改pte、pa引用
+  uint flags = PTE_FLAGS(*pte);
+  // XXX：pte与pa是联系的，要释放
+  uvmunmap(p->pagetable, va, 1, 0);
+  if(cowmappages(p->pagetable, va, PGSIZE, mem, flags) != 0){
+    panic("copyonwrite: cowmappages");
+    // kfree(mem);
+    // p->killed = 1;
+  }
+  // kpagerefinc((void *)pa, -1);
+  // }
+  *pte &= ~PTE_C;
+  *pte |= PTE_W;
+  
+  return 0;
+}
+
+int
+cowmappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
+{
+  uint64 a, last;
+  pte_t *pte;
+
+  a = PGROUNDDOWN(va);
+  last = PGROUNDDOWN(va + size - 1);
+  for(;;){
+    if((pte = walk(pagetable, a, 1)) == 0)
+      return -1;
+    // if(*pte & PTE_V)
+    //   panic("remap");
+    *pte = PA2PTE(pa) | perm | PTE_V;
+    if(a == last)
+      break;
+    a += PGSIZE;
+    pa += PGSIZE;
+  }
+  return 0;
+}
